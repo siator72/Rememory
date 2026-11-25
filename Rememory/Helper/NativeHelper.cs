@@ -39,9 +39,6 @@ namespace Rememory.Helper
 
         internal const uint MAPVK_VK_TO_CHAR = 2;
 
-        [DllImport("user32.dll")]
-        internal static extern uint MapVirtualKey(uint uCode, uint uMapType);
-
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern uint RegisterApplicationRestart(string pwzCommandline, int dwFlags);
 
