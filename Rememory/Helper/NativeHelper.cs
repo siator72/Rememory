@@ -29,6 +29,19 @@ namespace Rememory.Helper
         [DllImport("user32.dll")]
         internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        internal const int GWL_EXSTYLE = -20;
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+        internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        internal const uint MAPVK_VK_TO_CHAR = 2;
+
+        [DllImport("user32.dll")]
+        internal static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern uint RegisterApplicationRestart(string pwzCommandline, int dwFlags);
 

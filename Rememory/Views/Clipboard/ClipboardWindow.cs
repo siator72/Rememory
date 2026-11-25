@@ -1,10 +1,12 @@
-﻿using Microsoft.UI.Input;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rememory.Helper;
 using Rememory.Helper.WindowBackdrop;
 using Rememory.Models;
+using Rememory.Views.Clipboard;
 using Rememory.Views.Settings;
 using System;
 using System.Runtime.InteropServices;
@@ -127,6 +129,9 @@ namespace Rememory.Views.Clipboard
 
             MoveToStartPosition(position);
             Showing?.Invoke(this, EventArgs.Empty);
+            // Do not steal focus from the previously active window (e.g. an open dropdown),
+            // so it stays open and paste goes to it. Typing is routed to search via the keyboard hook.
+            NoActivate = true;
             AppWindow.Show();
 
             // Show window to user and avoid xaml loading artefacts
@@ -151,6 +156,7 @@ namespace Rememory.Views.Clipboard
 
         public void HideWindow()
         {
+            NoActivate = false;
             var cloaked = Cloak();
 
             Hiding?.Invoke(this, EventArgs.Empty);
@@ -164,9 +170,35 @@ namespace Rememory.Views.Clipboard
             }
         }
 
+        private bool _noActivate = false;
+
+        public bool NoActivate
+        {
+            get => _noActivate;
+            set
+            {
+                if (_noActivate == value) return;
+                _noActivate = value;
+                int exStyle = NativeHelper.GetWindowLong(Handle, NativeHelper.GWL_EXSTYLE);
+                if (value)
+                {
+                    exStyle |= (int)NativeHelper.WS_EX_NOACTIVATE;
+                }
+                else
+                {
+                    exStyle &= ~(int)NativeHelper.WS_EX_NOACTIVATE;
+                }
+                NativeHelper.SetWindowLong(Handle, NativeHelper.GWL_EXSTYLE, exStyle);
+            }
+        }
+
         private void FinalizeForegroundState()
         {
             _windowPresenter.IsAlwaysOnTop = true;
+            if (NoActivate)
+            {
+                return;
+            }
             // Emulating a keypress to "push" focus
             KeyboardHelper.MultiKeyAction([(VirtualKey)0x0E], KeyboardHelper.KeyAction.DownUp);
             this.SetForegroundWindow();
@@ -300,9 +332,55 @@ namespace Rememory.Views.Clipboard
             }
         }
 
+        /// <summary>
+        /// Forwards a typed character to the clipboard search box while the window runs in NoActivate mode.
+        /// Returns true if the key was consumed.
+        /// </summary>
+        public bool HandleSearchKey(int virtualCode)
+        {
+            if (!_noActivate || !IsVisibleToUser)
+            {
+                return false;
+            }
+
+            var rootPage = Content as ClipboardRootPage;
+            var viewModel = rootPage?.ViewModel;
+            if (viewModel is null)
+            {
+                return false;
+            }
+
+            if (virtualCode == (int)VirtualKey.Escape)
+            {
+                HideWindow();
+                return true;
+            }
+            if (virtualCode == (int)VirtualKey.Back)
+            {
+                if (viewModel.SearchString.Length > 0)
+                {
+                    viewModel.SearchString = viewModel.SearchString[..^1];
+                }
+                return true;
+            }
+
+            uint mapped = NativeHelper.MapVirtualKey((uint)virtualCode, NativeHelper.MAPVK_VK_TO_CHAR);
+            if (mapped == 0)
+            {
+                return false;
+            }
+            char c = (char)mapped;
+            if (!char.IsControl(c))
+            {
+                viewModel.SearchString += c;
+                return true;
+            }
+            return false;
+        }
+
         private void Window_Activated(object sender, WindowActivatedEventArgs args)
         {
-            if (IsVisibleToUser && !Pinned && args.WindowActivationState == WindowActivationState.Deactivated)
+            if (IsVisibleToUser && !Pinned && args.WindowActivationState == WindowActivationState.Deactivated && !NoActivate)
             {
                 HideWindow();
             }

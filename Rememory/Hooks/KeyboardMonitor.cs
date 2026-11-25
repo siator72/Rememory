@@ -56,6 +56,20 @@ namespace Rememory.Hooks
             var currentlyPressedKeys = new List<int>();
             var pressedKey = args.KeyboardData.VirtualCode;
 
+            // In NoActivate mode the clipboard window never owns keyboard focus,
+            // so route typed keys to its search box and swallow them here.
+            var clipboardWindow = App.Current.ClipboardWindow;
+            if (clipboardWindow is not null && clipboardWindow.NoActivate && clipboardWindow.IsVisibleToUser &&
+                (args.KeyboardState == GlobalKeyboardHook.KeyboardState.KeyDown ||
+                 args.KeyboardState == GlobalKeyboardHook.KeyboardState.SysKeyDown))
+            {
+                if (clipboardWindow.HandleSearchKey(pressedKey))
+                {
+                    args.Handled = true;
+                    return;
+                }
+            }
+
             // If the last key pressed is a modifier key, then currentlyPressedKeys cannot possibly match with _activationKeys
             // because _activationKeys contains exactly 1 non-modifier key. Hence, there's no need to check if `name` is a
             // modifier key or to do any additional processing on it.

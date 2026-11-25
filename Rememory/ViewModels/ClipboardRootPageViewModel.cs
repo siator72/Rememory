@@ -1166,6 +1166,13 @@ namespace Rememory.ViewModels
                 {
                     NativeHelper.SetForegroundWindow(windowToActivate);
                 }
+                else if (App.Current.ClipboardWindow.NoActivate)
+                {
+                    // Window was shown without activation: focus never left the target app,
+                    // so bring it back to the foreground to receive the paste keystroke.
+                    NativeHelper.SetForegroundWindow(_lastActiveWindowHandleBeforeShowing);
+                    App.Current.ClipboardWindow.HideWindow();
+                }
                 else
                 {
                     App.Current.ClipboardWindow.HideWindow();
